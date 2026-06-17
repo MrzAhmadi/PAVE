@@ -1,157 +1,23 @@
 import logging
-import socket
-import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 from typing import List, Optional
 
 import requests
 
-from .config import CONNECTION_TIMEOUT, IP_CHECK_URL, MAX_WORKERS, TCP_PRECHECK_TIMEOUT
+from .config import IP_CHECK_URL, MAX_WORKERS
+from .protocols import create_tester
 from .models import ProxyConfig, TestResult
-from .runners import (Hysteria2Process, SingboxProcess, XrayProcess,
-                      ensure_hysteria2, ensure_singbox, ensure_xray)
+from .runners import ensure_hysteria2, ensure_singbox, ensure_xray
 
 logger = logging.getLogger(__name__)
-
-CURL_ERRORS = {
-    5:  "SOCKS proxy error",
-    6:  "DNS lookup failed",
-    7:  "Connection refused",
-    28: "Timeout",
-    35: "SSL handshake failed",
-    56: "Network receive error",
-}
 
 
 def get_local_ip() -> str:
     try:
-        resp = requests.get(IP_CHECK_URL, timeout=10)
-        return resp.text.strip()
+        return requests.get(IP_CHECK_URL, timeout=10).text.strip()
     except Exception:
         return ""
-
-
-def _tcp_reachable(host: str, port: int) -> bool:
-    try:
-        socket.inet_pton(socket.AF_INET, host)
-    except OSError:
-        try:
-            socket.inet_pton(socket.AF_INET6, host)
-        except OSError:
-            return True
-
-    try:
-        with socket.create_connection((host, port), timeout=TCP_PRECHECK_TIMEOUT):
-            return True
-    except OSError:
-        return False
-
-
-def _test_via_curl(
-    port: int, timeout: int = CONNECTION_TIMEOUT
-) -> tuple[Optional[str], Optional[float], Optional[str]]:
-    cmd = [
-        "curl", "--silent", "--max-time", str(timeout),
-        "--socks5-hostname", f"127.0.0.1:{port}",
-        IP_CHECK_URL,
-    ]
-    t0 = time.monotonic()
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 2)
-        elapsed_ms = (time.monotonic() - t0) * 1000
-        if result.returncode == 0:
-            ip = result.stdout.strip()
-            if ip:
-                return ip, round(elapsed_ms, 2), None
-            return None, None, "Empty response"
-        err = CURL_ERRORS.get(result.returncode, f"curl error {result.returncode}")
-        return None, None, err
-    except subprocess.TimeoutExpired:
-        return None, None, "Timeout"
-    except Exception as e:
-        return None, None, str(e)[:120]
-
-
-def _test_socks_direct(cfg: ProxyConfig) -> tuple[Optional[str], Optional[float], Optional[str]]:
-    p = cfg.params
-    user, pw = p.get("username", ""), p.get("password", "")
-    proxy = f"{user}:{pw}@{cfg.server}:{cfg.port}" if user else f"{cfg.server}:{cfg.port}"
-    cmd = [
-        "curl", "--silent", "--max-time", str(CONNECTION_TIMEOUT),
-        "--socks5-hostname", proxy,
-        IP_CHECK_URL,
-    ]
-    t0 = time.monotonic()
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=CONNECTION_TIMEOUT + 2)
-        elapsed_ms = (time.monotonic() - t0) * 1000
-        if result.returncode == 0:
-            ip = result.stdout.strip()
-            if ip:
-                return ip, round(elapsed_ms, 2), None
-        return None, None, CURL_ERRORS.get(result.returncode, f"curl error {result.returncode}")
-    except subprocess.TimeoutExpired:
-        return None, None, "Timeout"
-    except Exception as e:
-        return None, None, str(e)[:120]
-
-
-def test_one(
-    cfg: ProxyConfig,
-    local_ip: str,
-    xray_bin: Path,
-    hy2_bin: Optional[Path] = None,
-    singbox_bin: Optional[Path] = None,
-) -> TestResult:
-    result = TestResult(config=cfg, local_ip=local_ip)
-
-    if cfg.protocol == "socks":
-        exit_ip, latency_ms, err = _test_socks_direct(cfg)
-        if exit_ip:
-            result.success, result.latency_ms = True, latency_ms
-            result.exit_ip = exit_ip
-            result.is_redirecting = (exit_ip != local_ip)
-        else:
-            result.error = err
-        return result
-
-    if not _tcp_reachable(cfg.server, cfg.port):
-        result.error = "Host unreachable"
-        return result
-
-    if cfg.protocol == "hysteria2":
-        if hy2_bin is None:
-            result.error = "hysteria2 binary not available"
-            return result
-        runner = Hysteria2Process(cfg, hy2_bin)
-        startup_err = "hysteria2 failed to start"
-    elif cfg.protocol in ("tuic", "ssr"):
-        if singbox_bin is None:
-            result.error = f"{cfg.protocol}: sing-box binary not available"
-            return result
-        runner = SingboxProcess(cfg, singbox_bin)
-        startup_err = "sing-box failed to start"
-    else:
-        runner = XrayProcess(cfg, xray_bin)
-        startup_err = "xray failed to start"
-
-    with runner as port:
-        if port is None:
-            result.error = startup_err
-            return result
-        exit_ip, latency_ms, err = _test_via_curl(port)
-
-    if exit_ip:
-        result.success = True
-        result.latency_ms = latency_ms
-        result.exit_ip = exit_ip
-        result.is_redirecting = exit_ip != local_ip
-    else:
-        result.error = err
-
-    return result
 
 
 def run_tests(
@@ -184,7 +50,9 @@ def run_tests(
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_map = {
-            pool.submit(test_one, cfg, local_ip, xray_bin, hy2_bin, singbox_bin): cfg
+            pool.submit(
+                create_tester(cfg, local_ip, xray_bin, hy2_bin, singbox_bin).run
+            ): cfg
             for cfg in configs
         }
         total = len(future_map)
