@@ -8,6 +8,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+SRC_DIR = Path(__file__).resolve().parent.parent
+
 
 def _uid_gid() -> str:
     return f"{os.getuid()}:{os.getgid()}"
@@ -22,6 +24,7 @@ def _docker_compose_run(extra_args: list[str], log_path: Path, prefix: str = "")
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            cwd=SRC_DIR,
         )
         for line in proc.stdout:
             log.write(line)
@@ -33,7 +36,11 @@ def _docker_compose_run(extra_args: list[str], log_path: Path, prefix: str = "")
 
 def _build_image() -> None:
     print("[setup] Ensuring Docker image is up to date...")
-    subprocess.run(["docker", "compose", "build", "--quiet", "configprobe"], check=True)
+    subprocess.run(
+        ["docker", "compose", "build", "--quiet", "configprobe"],
+        check=True,
+        cwd=SRC_DIR,
+    )
     print("[setup] Image ready.\n")
 
 
@@ -112,30 +119,34 @@ def main() -> None:
                    help="Log summary every N configs per container (default: 250).")
     args = p.parse_args()
 
+    outdir = args.outdir
+    if not outdir.is_absolute():
+        outdir = SRC_DIR / outdir
+
     start = time.time()
     sep = "=" * 40
     print(sep)
     print(" Config Probe — Parallel Container Run")
     print(f" Containers : {args.containers}")
     print(f" Workers    : {args.workers} each ({args.containers * args.workers} total concurrent)")
-    print(f" Output dir : {args.outdir}/")
+    print(f" Output dir : {outdir}/")
     print(sep + "\n")
 
     _build_image()
-    _create_output_dirs(args.outdir, args.containers)
-    total_configs, config_file = _prefetch(args.outdir)
+    _create_output_dirs(outdir, args.containers)
+    total_configs, config_file = _prefetch(outdir)
 
     approx = (total_configs + args.containers - 1) // args.containers
     print(f"Launching {args.containers} containers (~{approx} configs each)...")
     print(f"(progress logged every {args.progress_interval} configs per container)")
-    print(f"(full logs → {args.outdir}/logs/shard_N.log)\n")
+    print(f"(full logs → {outdir}/logs/shard_N.log)\n")
 
     failed = 0
     with ThreadPoolExecutor(max_workers=args.containers) as pool:
         future_map = {
             pool.submit(
                 _run_shard, i, args.containers, args.workers,
-                args.outdir, args.progress_interval, args.limit,
+                outdir, args.progress_interval, args.limit,
             ): i
             for i in range(args.containers)
         }
@@ -156,13 +167,13 @@ def main() -> None:
     print(" Merging results...")
     print(sep)
 
-    _merge_results(args.containers, args.outdir)
+    _merge_results(args.containers, outdir)
 
     print(f"\n{sep}")
     print(f" Done!  Total time: {mins}m {secs}s")
-    print(f" Results → {args.outdir}/merged/results.csv")
-    print(f"         → {args.outdir}/merged/results.json")
-    print(f" Shard logs → {args.outdir}/logs/")
+    print(f" Results → {outdir}/merged/results.csv")
+    print(f"         → {outdir}/merged/results.json")
+    print(f" Shard logs → {outdir}/logs/")
     print(f" Config list → {config_file}")
     print(sep)
 

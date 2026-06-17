@@ -12,6 +12,7 @@ import requests
 from .config import CONNECTION_TIMEOUT, IP_CHECK_URL, MAX_WORKERS, TCP_PRECHECK_TIMEOUT
 from .models import ProxyConfig, TestResult
 from .runners import Hysteria2Process, XrayProcess, ensure_hysteria2, ensure_xray
+from .safety import SafetyChecker
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,8 @@ CURL_ERRORS = {
     35: "SSL handshake failed",
     56: "Network receive error",
 }
+
+_safety_checker = SafetyChecker()
 
 
 def get_local_ip() -> str:
@@ -98,6 +101,14 @@ def _test_socks_direct(cfg: ProxyConfig) -> tuple[Optional[str], Optional[float]
         return None, None, str(e)[:120]
 
 
+def _apply_safety(result: TestResult, socks_port: int, exit_ip: str, local_ip: str) -> None:
+    checks = _safety_checker.run_all(socks_port, exit_ip, local_ip)
+    result.dns_leak          = not checks["DnsLeakCheck"].passed
+    result.ipv6_leak         = not checks["IPv6LeakCheck"].passed
+    result.tls_tampered      = not checks["TlsFingerprintCheck"].passed
+    result.response_tampered = not checks["ResponseIntegrityCheck"].passed
+
+
 def test_one(cfg: ProxyConfig, local_ip: str, xray_bin: Path, hy2_bin: Optional[Path] = None) -> TestResult:
     result = TestResult(config=cfg, local_ip=local_ip, timestamp=datetime.utcnow().isoformat())
 
@@ -134,6 +145,8 @@ def test_one(cfg: ProxyConfig, local_ip: str, xray_bin: Path, hy2_bin: Optional[
             result.error = startup_err
             return result
         exit_ip, latency_ms, err = _test_via_curl(port)
+        if exit_ip:
+            _apply_safety(result, port, exit_ip, local_ip)
 
     if exit_ip:
         result.success = True
@@ -223,7 +236,7 @@ def _enrich_geo(results: List[TestResult]):
 
     logger.info(f"Fetching geo info for {len(unique_ips)} unique exit IP(s) (batch mode)...")
     geo_cache: dict = {}
-    batch_url = "http://ip-api.com/batch?fields=query,status,country,countryCode,city,org,as,hosting"
+    batch_url = "http://ip-api.com/batch?fields=query,status,country,countryCode,city,org,as,hosting,proxy"
     batch_size = 100
 
     for i in range(0, len(unique_ips), batch_size):
@@ -237,12 +250,13 @@ def _enrich_geo(results: List[TestResult]):
             for item in resp.json():
                 if item.get("status") == "success":
                     geo_cache[item["query"]] = {
-                        "country":       item.get("country"),
-                        "country_code":  item.get("countryCode"),
-                        "city":          item.get("city"),
-                        "org":           item.get("org"),
-                        "asn":           item.get("as"),
-                        "is_datacenter": item.get("hosting", False),
+                        "country":        item.get("country"),
+                        "country_code":   item.get("countryCode"),
+                        "city":           item.get("city"),
+                        "org":            item.get("org"),
+                        "asn":            item.get("as"),
+                        "is_datacenter":  item.get("hosting", False),
+                        "is_blacklisted": item.get("proxy", False),
                     }
         except Exception as e:
             logger.debug(f"Geo batch lookup failed: {e}")
@@ -258,3 +272,4 @@ def _enrich_geo(results: List[TestResult]):
         res.org           = geo.get("org")
         res.asn           = geo.get("asn")
         res.is_datacenter = geo.get("is_datacenter")
+        res.is_blacklisted = geo.get("is_blacklisted")
