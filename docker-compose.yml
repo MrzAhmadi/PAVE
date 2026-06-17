@@ -1,0 +1,7 @@
+services:
+  configprobe:
+    build: .
+    image: configprobe:latest
+    volumes:
+      - ./config_results:/results
+      - ./:/subs:ro
