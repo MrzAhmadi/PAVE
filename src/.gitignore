@@ -1,10 +1,10 @@
 subscriptions.txt
+analysis/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .env
-vpn_results/
+config_results/
 *.log
 .DS_Store
-analysis
