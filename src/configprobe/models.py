@@ -40,28 +40,42 @@ class TestResult:
     asn: Optional[str] = None
     is_datacenter: Optional[bool] = None
     is_blacklisted: Optional[bool] = None
+    dns_resolver_ip: Optional[str] = None
+    dns_resolver_country: Optional[str] = None
+    dns_leak: Optional[bool] = None
+    ipv6_exit_ip: Optional[str] = None
+    ipv6_leak: Optional[bool] = None
+    proxy_detected: Optional[bool] = None
+    x_forwarded_for: Optional[str] = None
     error: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
-            "config_id":      self.config.config_id,
-            "protocol":       self.config.protocol,
-            "server":         self.config.server,
-            "port":           self.config.port,
-            "name":           self.config.name,
-            "source":         self.config.source,
-            "timestamp":      self.timestamp,
-            "success":        self.success,
-            "latency_ms":     self.latency_ms,
-            "exit_ip":        self.exit_ip,
-            "local_ip":       self.local_ip,
-            "is_redirecting": self.is_redirecting,
-            "country":        self.country,
-            "country_code":   self.country_code,
-            "city":           self.city,
-            "org":            self.org,
-            "asn":            self.asn,
-            "is_datacenter":  self.is_datacenter,
-            "is_blacklisted": self.is_blacklisted,
-            "error":          self.error,
+            "config_id":            self.config.config_id,
+            "protocol":             self.config.protocol,
+            "server":               self.config.server,
+            "port":                 self.config.port,
+            "name":                 self.config.name,
+            "source":               self.config.source,
+            "timestamp":            self.timestamp,
+            "success":              self.success,
+            "latency_ms":           self.latency_ms,
+            "exit_ip":              self.exit_ip,
+            "local_ip":             self.local_ip,
+            "is_redirecting":       self.is_redirecting,
+            "country":              self.country,
+            "country_code":         self.country_code,
+            "city":                 self.city,
+            "org":                  self.org,
+            "asn":                  self.asn,
+            "is_datacenter":        self.is_datacenter,
+            "is_blacklisted":       self.is_blacklisted,
+            "dns_resolver_ip":      self.dns_resolver_ip,
+            "dns_resolver_country": self.dns_resolver_country,
+            "dns_leak":             self.dns_leak,
+            "ipv6_exit_ip":         self.ipv6_exit_ip,
+            "ipv6_leak":            self.ipv6_leak,
+            "proxy_detected":       self.proxy_detected,
+            "x_forwarded_for":      self.x_forwarded_for,
+            "error":                self.error,
         }

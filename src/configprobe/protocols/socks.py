@@ -12,12 +12,14 @@ class SocksProtocolTester(ProtocolTester):
     def __init__(self, cfg: ProxyConfig, local_ip: str):
         super().__init__(cfg, local_ip)
 
-    def connect(self) -> tuple[Optional[str], Optional[float], Optional[str]]:
+    def connect(self) -> tuple[Optional[str], Optional[float], Optional[str], dict]:
         p = self.cfg.params
         user, pw = p.get("username", ""), p.get("password", "")
-        proxy = (
+        proxy_addr = (
             f"{user}:{pw}@{self.cfg.server}:{self.cfg.port}"
             if user
             else f"{self.cfg.server}:{self.cfg.port}"
         )
-        return self._curl_via_socks(proxy)
+        exit_ip, latency_ms, err = self._curl_via_socks(proxy_addr)
+        extra = self._collect_info(proxy_addr) if exit_ip else {}
+        return exit_ip, latency_ms, err, extra

@@ -98,46 +98,63 @@ def _log_summary(done: int, total: int, working: int):
 
 def _enrich_geo(results: List[TestResult]):
     successful = [r for r in results if r.success and r.exit_ip]
-    unique_ips = list({r.exit_ip for r in successful})
-    if not unique_ips:
+    if not successful:
         return
 
-    logger.info(f"Fetching geo info for {len(unique_ips)} unique exit IP(s) (batch mode)...")
-    geo_cache: dict = {}
-    batch_url = "http://ip-api.com/batch?fields=query,status,country,countryCode,city,org,as,hosting,proxy"
+    batch_url  = "http://ip-api.com/batch?fields=query,status,country,countryCode,city,org,as,hosting,proxy"
     batch_size = 100
 
-    for i in range(0, len(unique_ips), batch_size):
-        batch = unique_ips[i : i + batch_size]
-        try:
-            resp = requests.post(
-                batch_url,
-                json=[{"query": ip} for ip in batch],
-                timeout=30,
-            )
-            for item in resp.json():
-                if item.get("status") == "success":
-                    geo_cache[item["query"]] = {
-                        "country":        item.get("country"),
-                        "country_code":   item.get("countryCode"),
-                        "city":           item.get("city"),
-                        "org":            item.get("org"),
-                        "asn":            item.get("as"),
-                        "is_datacenter":  item.get("hosting", False),
-                        "is_blacklisted": item.get("proxy", False),
-                    }
-        except Exception as e:
-            logger.debug(f"Geo batch lookup failed: {e}")
+    def _batch_lookup(ips: list) -> dict:
+        cache: dict = {}
+        for i in range(0, len(ips), batch_size):
+            batch = ips[i : i + batch_size]
+            try:
+                resp = requests.post(
+                    batch_url,
+                    json=[{"query": ip} for ip in batch],
+                    timeout=30,
+                )
+                for item in resp.json():
+                    if item.get("status") == "success":
+                        cache[item["query"]] = {
+                            "country":        item.get("country"),
+                            "country_code":   item.get("countryCode"),
+                            "city":           item.get("city"),
+                            "org":            item.get("org"),
+                            "asn":            item.get("as"),
+                            "is_datacenter":  item.get("hosting", False),
+                            "is_blacklisted": item.get("proxy", False),
+                        }
+            except Exception as e:
+                logger.debug(f"Geo batch lookup failed: {e}")
+            if i + batch_size < len(ips):
+                time.sleep(4)
+        return cache
 
-        if i + batch_size < len(unique_ips):
-            time.sleep(4)
+    exit_ips = list({r.exit_ip for r in successful})
+    logger.info(f"Fetching geo info for {len(exit_ips)} unique exit IP(s)...")
+    geo_cache = _batch_lookup(exit_ips)
 
     for res in successful:
         geo = geo_cache.get(res.exit_ip, {})
-        res.country       = geo.get("country")
-        res.country_code  = geo.get("country_code")
-        res.city          = geo.get("city")
-        res.org           = geo.get("org")
-        res.asn           = geo.get("asn")
-        res.is_datacenter = geo.get("is_datacenter")
+        res.country        = geo.get("country")
+        res.country_code   = geo.get("country_code")
+        res.city           = geo.get("city")
+        res.org            = geo.get("org")
+        res.asn            = geo.get("asn")
+        res.is_datacenter  = geo.get("is_datacenter")
         res.is_blacklisted = geo.get("is_blacklisted")
+
+    for res in successful:
+        if res.dns_resolver_country and res.country_code:
+            res.dns_leak = res.dns_resolver_country != res.country_code
+
+    ipv6_ips = list({r.ipv6_exit_ip for r in successful if r.ipv6_exit_ip})
+    if ipv6_ips:
+        logger.info(f"Fetching geo info for {len(ipv6_ips)} IPv6 exit IP(s)...")
+        ipv6_cache = _batch_lookup(ipv6_ips)
+        for res in successful:
+            if res.ipv6_exit_ip and res.country_code:
+                ipv6_country = ipv6_cache.get(res.ipv6_exit_ip, {}).get("country_code")
+                if ipv6_country:
+                    res.ipv6_leak = ipv6_country != res.country_code

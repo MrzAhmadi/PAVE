@@ -13,6 +13,9 @@ CSV_FIELDS = [
     "timestamp", "success", "latency_ms", "exit_ip", "local_ip",
     "is_redirecting", "country", "country_code", "city", "org", "asn",
     "is_datacenter", "is_blacklisted",
+    "dns_resolver_ip", "dns_resolver_country", "dns_leak",
+    "ipv6_exit_ip", "ipv6_leak",
+    "proxy_detected", "x_forwarded_for",
     "error",
 ]
 

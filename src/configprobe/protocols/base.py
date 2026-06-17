@@ -26,11 +26,11 @@ class ProtocolTester(ABC):
         self.local_ip = local_ip
 
     @abstractmethod
-    def connect(self) -> tuple[Optional[str], Optional[float], Optional[str]]:
+    def connect(self) -> tuple[Optional[str], Optional[float], Optional[str], dict]:
         """Start proxy and attempt connection.
 
-        Returns (exit_ip, latency_ms, error). Exactly one of exit_ip or error
-        is set; latency_ms is set only on success.
+        Returns (exit_ip, latency_ms, error, extra). Exactly one of exit_ip or
+        error is set; latency_ms and extra are set only on success.
         """
 
     def is_connected(self, exit_ip: Optional[str]) -> bool:
@@ -70,17 +70,37 @@ class ProtocolTester(ABC):
 
         Geo enrichment (get_info) is intentionally omitted here so that
         run_tests() can batch all lookups in one call for efficiency.
+        dns_leak and ipv6_leak are also computed later by run_tests().
         """
         result = TestResult(config=self.cfg, local_ip=self.local_ip)
-        exit_ip, latency_ms, err = self.connect()
+        exit_ip, latency_ms, err, extra = self.connect()
         if exit_ip and self.is_connected(exit_ip):
-            result.success      = True
-            result.latency_ms   = latency_ms
-            result.exit_ip      = exit_ip
-            result.is_redirecting = True
+            result.success              = True
+            result.latency_ms           = latency_ms
+            result.exit_ip              = exit_ip
+            result.is_redirecting       = True
+            result.dns_resolver_ip      = extra.get("dns_resolver_ip")
+            result.dns_resolver_country = extra.get("dns_resolver_country")
+            result.ipv6_exit_ip         = extra.get("ipv6_exit_ip")
+            result.proxy_detected       = extra.get("proxy_detected")
+            result.x_forwarded_for      = extra.get("x_forwarded_for")
         else:
             result.error = err
         return result
+
+    @staticmethod
+    def _collect_info(proxy_addr: str) -> dict:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from ..checks import CHECKS
+        info: dict = {}
+        with ThreadPoolExecutor(max_workers=len(CHECKS)) as pool:
+            futures = {pool.submit(c.run, proxy_addr): c for c in CHECKS}
+            for future in as_completed(futures):
+                try:
+                    info.update(future.result())
+                except Exception:
+                    pass
+        return info
 
     @staticmethod
     def _tcp_reachable(host: str, port: int) -> bool:
@@ -136,14 +156,17 @@ class XrayBasedTester(ProtocolTester):
         super().__init__(cfg, local_ip)
         self.xray_bin = xray_bin
 
-    def connect(self) -> tuple[Optional[str], Optional[float], Optional[str]]:
+    def connect(self) -> tuple[Optional[str], Optional[float], Optional[str], dict]:
         if not self._tcp_reachable(self.cfg.server, self.cfg.port):
-            return None, None, "Host unreachable"
+            return None, None, "Host unreachable", {}
         from ..runners import XrayProcess
         with XrayProcess(self.cfg, self.xray_bin) as port:
             if port is None:
-                return None, None, "xray failed to start"
-            return self._curl_via_socks(f"127.0.0.1:{port}")
+                return None, None, "xray failed to start", {}
+            proxy_addr = f"127.0.0.1:{port}"
+            exit_ip, latency_ms, err = self._curl_via_socks(proxy_addr)
+            extra = self._collect_info(proxy_addr) if exit_ip else {}
+            return exit_ip, latency_ms, err, extra
 
 
 class SingboxBasedTester(ProtocolTester):
@@ -153,13 +176,16 @@ class SingboxBasedTester(ProtocolTester):
         super().__init__(cfg, local_ip)
         self.singbox_bin = singbox_bin
 
-    def connect(self) -> tuple[Optional[str], Optional[float], Optional[str]]:
+    def connect(self) -> tuple[Optional[str], Optional[float], Optional[str], dict]:
         if self.singbox_bin is None:
-            return None, None, f"{self.cfg.protocol}: sing-box binary not available"
+            return None, None, f"{self.cfg.protocol}: sing-box binary not available", {}
         if not self._tcp_reachable(self.cfg.server, self.cfg.port):
-            return None, None, "Host unreachable"
+            return None, None, "Host unreachable", {}
         from ..runners import SingboxProcess
         with SingboxProcess(self.cfg, self.singbox_bin) as port:
             if port is None:
-                return None, None, "sing-box failed to start"
-            return self._curl_via_socks(f"127.0.0.1:{port}")
+                return None, None, "sing-box failed to start", {}
+            proxy_addr = f"127.0.0.1:{port}"
+            exit_ip, latency_ms, err = self._curl_via_socks(proxy_addr)
+            extra = self._collect_info(proxy_addr) if exit_ip else {}
+            return exit_ip, latency_ms, err, extra
