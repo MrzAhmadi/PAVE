@@ -43,6 +43,26 @@ RUN set -eux; \
     chmod +x /usr/local/bin/hysteria2; \
     hysteria2 version
 
+RUN set -eux; \
+    ARCH="$(dpkg --print-architecture)"; \
+    case "$ARCH" in \
+        amd64) SB_ARCH="linux-amd64" ;; \
+        arm64) SB_ARCH="linux-arm64" ;; \
+        armhf) SB_ARCH="linux-armv7" ;; \
+        *)     SB_ARCH="linux-amd64" ;; \
+    esac; \
+    VERSION="$(curl -fsSL https://api.github.com/repos/SagerNet/sing-box/releases/latest \
+               | grep '"tag_name"' | head -1 | cut -d'"' -f4)"; \
+    VER="${VERSION#v}"; \
+    echo "Installing sing-box ${VERSION} (${SB_ARCH})"; \
+    curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/${VERSION}/sing-box-${VER}-${SB_ARCH}.tar.gz" \
+         -o /tmp/sing-box.tar.gz; \
+    tar -xzf /tmp/sing-box.tar.gz -C /tmp/; \
+    mv "/tmp/sing-box-${VER}-${SB_ARCH}/sing-box" /usr/local/bin/sing-box; \
+    chmod +x /usr/local/bin/sing-box; \
+    rm -rf /tmp/sing-box.tar.gz "/tmp/sing-box-${VER}-${SB_ARCH}"; \
+    sing-box version
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

@@ -91,7 +91,7 @@ def _build_outbound(cfg: ProxyConfig) -> dict:
         return _vless_outbound(cfg)
     elif p == "vmess":
         return _vmess_outbound(cfg)
-    elif p in ("ss", "ssr"):
+    elif p == "ss":
         return _ss_outbound(cfg)
     elif p == "trojan":
         return _trojan_outbound(cfg)

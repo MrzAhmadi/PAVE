@@ -3,5 +3,5 @@ services:
     build: .
     image: configprobe:latest
     volumes:
-      - ./config_results:/results
+      - ../results:/results
       - ./:/subs:ro

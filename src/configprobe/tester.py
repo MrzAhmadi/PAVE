@@ -3,7 +3,6 @@ import socket
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -11,8 +10,8 @@ import requests
 
 from .config import CONNECTION_TIMEOUT, IP_CHECK_URL, MAX_WORKERS, TCP_PRECHECK_TIMEOUT
 from .models import ProxyConfig, TestResult
-from .runners import Hysteria2Process, XrayProcess, ensure_hysteria2, ensure_xray
-from .safety import SafetyChecker
+from .runners import (Hysteria2Process, SingboxProcess, XrayProcess,
+                      ensure_hysteria2, ensure_singbox, ensure_xray)
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +23,6 @@ CURL_ERRORS = {
     35: "SSL handshake failed",
     56: "Network receive error",
 }
-
-_safety_checker = SafetyChecker()
 
 
 def get_local_ip() -> str:
@@ -101,20 +98,14 @@ def _test_socks_direct(cfg: ProxyConfig) -> tuple[Optional[str], Optional[float]
         return None, None, str(e)[:120]
 
 
-def _apply_safety(result: TestResult, socks_port: int, exit_ip: str, local_ip: str) -> None:
-    checks = _safety_checker.run_all(socks_port, exit_ip, local_ip)
-    result.dns_leak          = not checks["DnsLeakCheck"].passed
-    result.ipv6_leak         = not checks["IPv6LeakCheck"].passed
-    result.tls_tampered      = not checks["TlsFingerprintCheck"].passed
-    result.response_tampered = not checks["ResponseIntegrityCheck"].passed
-
-
-def test_one(cfg: ProxyConfig, local_ip: str, xray_bin: Path, hy2_bin: Optional[Path] = None) -> TestResult:
-    result = TestResult(config=cfg, local_ip=local_ip, timestamp=datetime.utcnow().isoformat())
-
-    if cfg.protocol == "tuic":
-        result.error = "Protocol not testable (tuic requires separate client)"
-        return result
+def test_one(
+    cfg: ProxyConfig,
+    local_ip: str,
+    xray_bin: Path,
+    hy2_bin: Optional[Path] = None,
+    singbox_bin: Optional[Path] = None,
+) -> TestResult:
+    result = TestResult(config=cfg, local_ip=local_ip)
 
     if cfg.protocol == "socks":
         exit_ip, latency_ms, err = _test_socks_direct(cfg)
@@ -136,6 +127,12 @@ def test_one(cfg: ProxyConfig, local_ip: str, xray_bin: Path, hy2_bin: Optional[
             return result
         runner = Hysteria2Process(cfg, hy2_bin)
         startup_err = "hysteria2 failed to start"
+    elif cfg.protocol in ("tuic", "ssr"):
+        if singbox_bin is None:
+            result.error = f"{cfg.protocol}: sing-box binary not available"
+            return result
+        runner = SingboxProcess(cfg, singbox_bin)
+        startup_err = "sing-box failed to start"
     else:
         runner = XrayProcess(cfg, xray_bin)
         startup_err = "xray failed to start"
@@ -145,14 +142,12 @@ def test_one(cfg: ProxyConfig, local_ip: str, xray_bin: Path, hy2_bin: Optional[
             result.error = startup_err
             return result
         exit_ip, latency_ms, err = _test_via_curl(port)
-        if exit_ip:
-            _apply_safety(result, port, exit_ip, local_ip)
 
     if exit_ip:
         result.success = True
         result.latency_ms = latency_ms
         result.exit_ip = exit_ip
-        result.is_redirecting = (exit_ip != local_ip) and bool(exit_ip)
+        result.is_redirecting = exit_ip != local_ip
     else:
         result.error = err
 
@@ -162,16 +157,23 @@ def test_one(cfg: ProxyConfig, local_ip: str, xray_bin: Path, hy2_bin: Optional[
 def run_tests(
     configs: List[ProxyConfig],
     max_workers: int = MAX_WORKERS,
-    progress_cb=None,
     progress_interval: int = 1,
 ) -> List[TestResult]:
     xray_bin = ensure_xray()
+
     hy2_bin = None
     if any(c.protocol == "hysteria2" for c in configs):
         try:
             hy2_bin = ensure_hysteria2()
         except Exception as e:
             logger.warning(f"hysteria2 binary unavailable: {e} — hy2 configs will be skipped")
+
+    singbox_bin = None
+    if any(c.protocol in ("tuic", "ssr") for c in configs):
+        try:
+            singbox_bin = ensure_singbox()
+        except Exception as e:
+            logger.warning(f"sing-box binary unavailable: {e} — tuic/ssr configs will be skipped")
 
     local_ip = get_local_ip()
     logger.info(f"Local IP: {local_ip or '(unknown)'}")
@@ -182,7 +184,7 @@ def run_tests(
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_map = {
-            pool.submit(test_one, cfg, local_ip, xray_bin, hy2_bin): cfg
+            pool.submit(test_one, cfg, local_ip, xray_bin, hy2_bin, singbox_bin): cfg
             for cfg in configs
         }
         total = len(future_map)
@@ -200,9 +202,7 @@ def run_tests(
             if res.success:
                 working_count += 1
 
-            if progress_cb:
-                progress_cb(done, total, res)
-            elif progress_interval <= 1:
+            if progress_interval <= 1:
                 _log_progress(done, total, res)
             elif done % progress_interval == 0 or done == total:
                 _log_summary(done, total, working_count)

@@ -1,23 +1,50 @@
 # ConfigProbe
 
-Fetches free proxy/VPN subscription URLs, deduplicates configs, and tests each one for reachability and IP redirection.
-Supports vless, vmess, shadowsocks, trojan, hysteria2, SSR, SOCKS, and TUIC protocols.
+Fetches free proxy/VPN subscription URLs, deduplicates configs, and tests each one for reachability.
+Supports vless, vmess, shadowsocks (SS), ShadowsocksR (SSR), trojan, hysteria2, TUIC, and SOCKS protocols.
 Results are exported as CSV/JSON with geo-IP enrichment (country, city, ASN, datacenter flag).
 
 ## How to Run
 
 ### 1. Add subscription URLs
 
-Create `subscriptions.txt` (one URL per line):
+Edit `src/subscriptions.txt` — one URL per line, `#` lines are comments:
 
 ```text
 https://example.com/sub1
 https://example.com/sub2
 ```
 
-### 2. Single container (basic)
+### 2. Parallel containers (recommended)
+
+Run from the `src/` directory. This fetches once, splits work across N containers, and merges results:
 
 ```bash
+cd src
+python scripts/orchestrate.py 12 --outdir ../results
+```
+
+Smoke test (100 configs per shard):
+
+```bash
+python scripts/orchestrate.py 2 100 --workers 10 --outdir ../results
+```
+
+Options:
+
+```text
+python scripts/orchestrate.py [containers] [limit_per_shard]
+  --workers N            Concurrent workers per container (default: 50)
+  --outdir PATH          Output directory (default: config_results)
+  --progress-interval N  Log summary every N configs per container (default: 250)
+```
+
+Results are written to `results/merged/results.csv` and `results/merged/results.json`.
+
+### 3. Single container
+
+```bash
+cd src
 docker compose run --rm configprobe \
   -i /subs/subscriptions.txt \
   -w 10 \
@@ -25,82 +52,69 @@ docker compose run --rm configprobe \
   -f both
 ```
 
-### 3. Parallel containers (recommended for large lists)
+### 4. Rebuild the image
 
-Run 12 containers in parallel — fetch once, split the work, merge results:
-
-```bash
-python scripts/orchestrate.py 12
-```
-
-Smoke test with 15 configs per shard:
+Required after any code change or when updating the base binaries (xray, hysteria2, sing-box):
 
 ```bash
-python scripts/orchestrate.py 12 15
+cd src
+docker compose build
 ```
 
-Options:
+## Output Fields
 
-```bash
-python scripts/orchestrate.py [containers] [limit_per_shard] \
-  --workers 50 \
-  --outdir config_results \
-  --progress-interval 250
-```
-
-Results are written to `config_results/merged/results.csv` and `results.json`.
-
-### 4. Build the image manually
-
-```bash
-docker compose build configprobe
-```
+| Field | Description |
+| --- | --- |
+| `config_id` | MD5 hash of the raw config string (12 chars) |
+| `protocol` | vless / vmess / ss / ssr / trojan / hysteria2 / tuic / socks |
+| `server` | Remote server hostname or IP |
+| `port` | Remote port |
+| `name` | Config display name from the subscription |
+| `source` | Subscription URL the config came from |
+| `timestamp` | UTC time the test was run |
+| `success` | Whether a connection was established |
+| `latency_ms` | Round-trip time through the proxy (ms) |
+| `exit_ip` | Public IP seen at the exit node |
+| `local_ip` | Public IP of the test machine |
+| `is_redirecting` | `true` if exit IP differs from local IP |
+| `country` | Exit IP country |
+| `country_code` | ISO 3166-1 alpha-2 country code |
+| `city` | Exit IP city |
+| `org` | Exit IP organisation / ISP |
+| `asn` | Exit IP autonomous system number |
+| `is_datacenter` | `true` if exit IP is a known hosting/datacenter range |
+| `is_blacklisted` | `true` if exit IP is flagged as a known proxy/VPN by ip-api.com |
+| `error` | Error message if the test failed |
 
 ## Architecture
 
 ```text
 src/
-├── main.py                   # Docker entrypoint & CLI
+├── main.py                    # CLI entrypoint
+├── subscriptions.txt          # Subscription URLs (one per line)
 ├── configprobe/
-│   ├── models.py             # ProxyConfig, TestResult dataclasses
-│   ├── fetcher.py            # Fetch & base64-decode subscription URLs
-│   ├── parser.py             # Parse config URLs → ProxyConfig
-│   ├── runners/
-│   │   ├── base.py           # ProxyRunner ABC (context manager)
-│   │   ├── xray.py           # XrayProcess — vless/vmess/ss/trojan
-│   │   └── hysteria2.py      # Hysteria2Process
-│   ├── tester.py             # Per-config test + safety checks + geo enrichment
-│   ├── safety.py             # SafetyCheck ABC + DNS/IPv6/TLS/integrity checks
-│   ├── reporter.py           # CSV/JSON output + terminal summary
-│   └── config.py             # Constants (timeouts, binary paths)
+│   ├── models.py              # ProxyConfig, TestResult dataclasses
+│   ├── fetcher.py             # Fetch & decode subscription URLs
+│   ├── parser.py              # Parse raw config strings → ProxyConfig
+│   ├── tester.py              # Connection testing + geo enrichment
+│   ├── reporter.py            # CSV/JSON output + terminal summary
+│   ├── config.py              # Constants (timeouts, binary paths)
+│   └── runners/
+│       ├── base.py            # ProxyRunner ABC
+│       ├── xray.py            # vless / vmess / ss / trojan (via Xray-core)
+│       ├── hysteria2.py       # hysteria2 (via hysteria2 binary)
+│       └── singbox.py         # tuic / ssr (via sing-box)
 └── scripts/
-    ├── orchestrate.py        # Parallel Docker container orchestration
-    └── merge_results.py      # Merge shard outputs into one CSV/JSON
+    ├── orchestrate.py         # Parallel Docker orchestration
+    └── merge_results.py       # Merge shard outputs into one file
 ```
 
-**Pipeline per run:**
+**Pipeline:**
 
 1. Fetch subscription URLs → decode base64 → split into raw config lines
 2. Parse each line into a `ProxyConfig` (protocol, server, port, params)
 3. Deduplicate — exact string match, then credential-level (`protocol|server|port|auth`)
-4. *(If sharded)* Each container receives its 1/N slice via `--shard I --shards N`
-5. Per config: TCP pre-check → launch xray or hysteria2 subprocess → `curl` through local SOCKS5 → run safety checks
+4. *(Sharded)* Each container receives its 1/N slice via `--shard I --shards N`
+5. Per config: TCP pre-check → launch proxy subprocess (xray / hysteria2 / sing-box) → `curl` through local SOCKS5 port
 6. Batch geo-IP enrichment via ip-api.com after all tests complete
-7. *(If sharded)* `merge_results.py` concatenates shard CSVs/JSONs into `merged/`
-
-## Safety Checks per Config
-
-| # | Check | Output field | What it means |
-| - | ----- | ------------ | -------------- |
-| 1 | **Traffic redirection** — exit IP compared to local IP | `is_redirecting` | `false` = broken or leaking proxy; zero anonymity |
-| 2 | **Encryption layer** — `security` param parsed from the config URL | `protocol`, params | `none` = plaintext tunnel; `tls`/`reality` = encrypted |
-| 3 | **Datacenter vs. residential** — ip-api.com `hosting` flag | `is_datacenter` | `false` on a public config may indicate a botnet relay |
-| 4 | **Blacklist / reputation** — ip-api.com `proxy` flag on exit IP | `is_blacklisted` | `true` = IP is a known proxy, VPN, or Tor exit node |
-| 5 | **DNS leak** — bash.ws DNS leak test triggered through the proxy | `dns_leak` | `true` = DNS resolver matches local network, not the proxy |
-| 6 | **IPv6 leak** — `curl -6` through the proxy compared to local IPv6 | `ipv6_leak` | `true` = real IPv6 address exposed despite proxy |
-| 7 | **TLS fingerprint / MITM** — cert SHA-256 direct vs. through proxy | `tls_tampered` | `true` = certificate mismatch, active interception suspected |
-| 8 | **Response integrity** — two independent IP-check services cross-verified | `response_tampered` | `true` = services disagree or exit IP inconsistent |
-| 9 | **Geo-IP** — country, city, org, ASN resolved for every working exit IP | `country`, `city`, `org`, `asn` | Mismatch between claimed and actual region is a warning sign |
-| 10 | **Latency** — round-trip time through the proxy to the IP-check endpoint | `latency_ms` | < 50 ms to a distant server may indicate traffic stays local |
-
-See [SAFETY.md](SAFETY.md) for the full threat model and interpretation guide.
+7. *(Sharded)* `merge_results.py` concatenates shard outputs into `merged/`

@@ -13,7 +13,6 @@ CSV_FIELDS = [
     "timestamp", "success", "latency_ms", "exit_ip", "local_ip",
     "is_redirecting", "country", "country_code", "city", "org", "asn",
     "is_datacenter", "is_blacklisted",
-    "dns_leak", "ipv6_leak", "tls_tampered", "response_tampered",
     "error",
 ]
 
@@ -36,9 +35,9 @@ def save_json(results: List[TestResult], path: Path) -> None:
 
 
 def print_summary(results: List[TestResult]) -> None:
-    total      = len(results)
-    successful = [r for r in results if r.success]
-    working    = [r for r in successful if r.is_redirecting]
+    total         = len(results)
+    successful    = [r for r in results if r.success]
+    redirecting   = sum(1 for r in successful if r.is_redirecting)
 
     proto_counts: dict = {}
     country_counts: dict = {}
@@ -59,22 +58,13 @@ def print_summary(results: List[TestResult]) -> None:
     print(f"  Total tested   : {total}")
     pct = f"{len(successful)/total*100:.1f}%" if total else "—"
     print(f"  Reachable      : {len(successful)} ({pct})")
-    pct2 = f"{len(working)/total*100:.1f}%" if total else "—"
-    print(f"  Redirecting    : {len(working)} ({pct2})")
+    pct2 = f"{redirecting/total*100:.1f}%" if total else "—"
+    print(f"  Redirecting    : {redirecting} ({pct2})")
 
-    dns_leaks = sum(1 for r in successful if r.dns_leak)
-    ipv6_leaks = sum(1 for r in successful if r.ipv6_leak)
-    mitm = sum(1 for r in successful if r.tls_tampered)
-    tampered = sum(1 for r in successful if r.response_tampered)
     blacklisted = sum(1 for r in successful if r.is_blacklisted)
 
     if successful:
-        print(f"\n  Safety flags (working configs):")
-        print(f"    DNS leak       : {dns_leaks}")
-        print(f"    IPv6 leak      : {ipv6_leaks}")
-        print(f"    TLS tampered   : {mitm}")
-        print(f"    Response tamper: {tampered}")
-        print(f"    Blacklisted IP : {blacklisted}")
+        print(f"\n  Blacklisted IPs  : {blacklisted}")
 
     if proto_counts:
         print(f"\n  Protocol breakdown (working):")

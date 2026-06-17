@@ -219,14 +219,25 @@ def _parse_ssr(raw: str, source: str) -> Optional[ProxyConfig]:
     except Exception:
         name = f"{host}:{port}"
 
+    def _b64qs(key: str) -> str:
+        val = (qs.get(key) or [""])[0]
+        if not val:
+            return ""
+        try:
+            return base64.urlsafe_b64decode(val + "==").decode("utf-8", errors="ignore")
+        except Exception:
+            return val
+
     return ProxyConfig(
         raw=raw, protocol="ssr",
         server=host, port=port, name=name, source=source,
         params={
-            "method":   method,
-            "password": password,
-            "protocol": ssr_protocol,
-            "obfs":     obfs,
+            "method":         method,
+            "password":       password,
+            "protocol":       ssr_protocol,
+            "obfs":           obfs,
+            "obfs_param":     _b64qs("obfsparam"),
+            "protocol_param": _b64qs("protoparam"),
         },
     )
 
