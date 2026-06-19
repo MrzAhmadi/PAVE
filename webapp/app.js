@@ -123,6 +123,19 @@ function loadFromFile(file) {
   });
 }
 
+const IDLE_STATE_HTML = `
+  <div class="empty-icon">📊</div>
+  <h2>No Data Loaded</h2>
+  <p>Load the results CSV to explore VPN config data</p>
+  <button id="btn-load-url-2" class="btn-primary btn-lg">Load from Repository</button>
+  <p class="empty-hint">or use the Upload button to load a local CSV file</p>
+`;
+
+function showIdleState() {
+  $('empty-state').innerHTML = IDLE_STATE_HTML;
+  $('btn-load-url-2').addEventListener('click', () => loadFromUrl());
+}
+
 function beginParse() {
   state.rows = [];
   state.filtered = [];
@@ -130,6 +143,11 @@ function beginParse() {
   clearFiltersUI();
   $('dashboard').classList.add('hidden');
   $('empty-state').classList.remove('hidden');
+  $('empty-state').innerHTML = `
+    <div class="spinner"></div>
+    <h2 class="loading-title">Loading…</h2>
+    <p id="loading-msg" class="loading-msg">Connecting…</p>
+  `;
 }
 
 function ingestChunk(data, protocols, countries) {
@@ -139,6 +157,8 @@ function ingestChunk(data, protocols, countries) {
     if (r.protocol) protocols.add(r.protocol);
     if (r.country)  countries.add(r.country);
   }
+  const msg = $('loading-msg');
+  if (msg) msg.textContent = `Parsed ${state.rows.length.toLocaleString()} rows…`;
 }
 
 function finishLoad(protocols, countries) {
@@ -165,6 +185,7 @@ function onLoadError(err) {
       : (err?.message ?? String(err));
   $('load-status').textContent = 'Error';
   showProgress(true, 0, msg);
+  showIdleState();
   console.error('[ConfigProbe]', err);
 }
 
@@ -652,8 +673,7 @@ function exportCSV() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  $('btn-load-url').addEventListener('click',   () => loadFromUrl());
-  $('btn-load-url-2').addEventListener('click', () => loadFromUrl());
+  $('btn-load-url').addEventListener('click', () => loadFromUrl());
   $('data-url').addEventListener('keydown', e => { if (e.key === 'Enter') loadFromUrl(); });
   $('file-input').addEventListener('change', e => {
     if (e.target.files[0]) loadFromFile(e.target.files[0]);
