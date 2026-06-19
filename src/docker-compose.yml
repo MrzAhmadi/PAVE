@@ -1,7 +1,7 @@
 services:
-  configprobe:
+  pave:
     build: .
-    image: configprobe:latest
+    image: pave:latest
     volumes:
       - ../results:/results
       - ./:/subs:ro

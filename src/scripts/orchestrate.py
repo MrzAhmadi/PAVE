@@ -16,7 +16,7 @@ def _uid_gid() -> str:
 
 
 def _docker_compose_run(extra_args: list[str], log_path: Path, prefix: str = "") -> int:
-    cmd = ["docker", "compose", "run", "--rm", f"--user={_uid_gid()}", "configprobe"] + extra_args
+    cmd = ["docker", "compose", "run", "--rm", f"--user={_uid_gid()}", "pave"] + extra_args
     with open(log_path, "w", encoding="utf-8") as log:
         proc = subprocess.Popen(
             cmd,
@@ -37,7 +37,7 @@ def _docker_compose_run(extra_args: list[str], log_path: Path, prefix: str = "")
 def _build_image() -> None:
     print("[setup] Ensuring Docker image is up to date...")
     subprocess.run(
-        ["docker", "compose", "build", "--quiet", "configprobe"],
+        ["docker", "compose", "build", "--quiet", "pave"],
         check=True,
         cwd=SRC_DIR,
     )
@@ -106,7 +106,7 @@ def _merge_results(containers: int, outdir: Path) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Orchestrate parallel Docker Config Probe runs.")
+    p = argparse.ArgumentParser(description="Orchestrate parallel Docker PAVE runs.")
     p.add_argument("containers", type=int, nargs="?", default=12,
                    help="Number of parallel Docker containers (default: 12).")
     p.add_argument("limit", type=int, nargs="?", default=None,
@@ -126,7 +126,7 @@ def main() -> None:
     start = time.time()
     sep = "=" * 40
     print(sep)
-    print(" Config Probe — Parallel Container Run")
+    print(" PAVE — Parallel Container Run")
     print(f" Containers : {args.containers}")
     print(f" Workers    : {args.workers} each ({args.containers * args.workers} total concurrent)")
     print(f" Output dir : {outdir}/")

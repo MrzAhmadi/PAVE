@@ -1,4 +1,4 @@
-# ConfigProbe
+# Proxy Analysis and Verification Engine (PAVE)
 
 Fetches free proxy/VPN subscription URLs, deduplicates configs, and tests each one for reachability.
 Supports vless, vmess, shadowsocks (SS), ShadowsocksR (SSR), trojan, hysteria2, TUIC, and SOCKS protocols.
@@ -45,7 +45,7 @@ Results are written to `results/merged/results.csv` and `results/merged/results.
 
 ```bash
 cd src
-docker compose run --rm configprobe \
+docker compose run --rm pave \
   -i /subs/subscriptions.txt \
   -w 10 \
   -o /results \
@@ -68,6 +68,7 @@ docker compose build
 | Field | Description |
 | --- | --- |
 | `config_id` | MD5 hash of the raw config string (12 chars) |
+| `raw_config` | Original proxy URI (e.g. `vmess://…`) |
 | `protocol` | vless / vmess / ss / ssr / trojan / hysteria2 / tuic / socks |
 | `server` | Remote server hostname or IP |
 | `port` | Remote port |
@@ -111,7 +112,7 @@ docker compose build
 src/
 ├── main.py                          # CLI entrypoint
 ├── subscriptions.txt                # Subscription URLs (one per line)
-├── configprobe/
+├── pave/
 │   ├── config.py                    # Constants (timeouts, paths, worker count)
 │   ├── models.py                    # ProxyConfig, TestResult dataclasses
 │   ├── fetcher.py                   # Fetch & base64-decode subscription URLs

@@ -56,7 +56,7 @@ def print_summary(results: List[TestResult]) -> None:
 
     bar = "=" * 52
     print(f"\n{bar}")
-    print(f"  Config Probe — Results Summary")
+    print(f"  PAVE — Results Summary")
     print(bar)
     print(f"  Total tested   : {total}")
     pct = f"{len(successful)/total*100:.1f}%" if total else "—"

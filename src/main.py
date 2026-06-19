@@ -8,12 +8,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
 
-from configprobe.config import MAX_WORKERS
-from configprobe.fetcher import fetch_subscription
-from configprobe.models import ProxyConfig
-from configprobe.parser import parse_config
-from configprobe.reporter import print_summary, save_csv, save_json
-from configprobe.tester import run_tests
+from pave.config import MAX_WORKERS
+from pave.fetcher import fetch_subscription
+from pave.models import ProxyConfig
+from pave.parser import parse_config
+from pave.reporter import print_summary, save_csv, save_json
+from pave.tester import run_tests
 
 
 def deduplicate(configs: List[ProxyConfig]) -> List[ProxyConfig]:
@@ -38,7 +38,7 @@ def deduplicate(configs: List[ProxyConfig]) -> List[ProxyConfig]:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="configprobe",
+        prog="pave",
         description="Fetch, deduplicate, test and analyse free proxy configs.",
     )
     p.add_argument(
@@ -190,7 +190,7 @@ def main() -> int:
     )
 
     if args.timeout is not None:
-        import configprobe.config as cfg_mod
+        import pave.config as cfg_mod
         cfg_mod.CONNECTION_TIMEOUT = args.timeout
 
     if args.fetch_only:

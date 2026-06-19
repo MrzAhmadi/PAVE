@@ -16,7 +16,7 @@ SUPPORTED_PREFIXES = (
 
 def fetch_subscription(url: str, source_name: str = "") -> List[Tuple[str, str]]:
     try:
-        resp = requests.get(url, timeout=30, headers={"User-Agent": "ConfigProbe/1.0"})
+        resp = requests.get(url, timeout=30, headers={"User-Agent": "PAVE/1.0"})
         resp.raise_for_status()
         content = resp.text.strip()
     except requests.RequestException as e:

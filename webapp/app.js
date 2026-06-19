@@ -186,7 +186,7 @@ function onLoadError(err) {
   $('load-status').textContent = 'Error';
   showProgress(true, 0, msg);
   showIdleState();
-  console.error('[ConfigProbe]', err);
+  console.error('[PAVE]', err);
 }
 
 function populateSelect(id, values) {
@@ -608,7 +608,7 @@ function copyConfigDetails() {
   if (!activeConfig) return;
   const r = activeConfig;
   const lines = [
-    `ConfigProbe Result`,
+    `PAVE Result`,
     `─────────────────────────────`,
     `Protocol : ${r.protocol || '—'}`,
     `Server   : ${r.server}:${r.port}`,
@@ -666,7 +666,7 @@ function exportCSV() {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = Object.assign(document.createElement('a'), {
-    href: url, download: 'configprobe_filtered.csv',
+    href: url, download: 'pave_filtered.csv',
   });
   a.click();
   URL.revokeObjectURL(url);

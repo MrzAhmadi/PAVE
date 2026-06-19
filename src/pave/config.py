@@ -1,6 +1,6 @@
 from pathlib import Path
 
-XRAY_DIR = Path.home() / ".configprobe"
+XRAY_DIR = Path.home() / ".pave"
 XRAY_BINARY = XRAY_DIR / "xray"
 
 IP_CHECK_URL = "https://api.ipify.org"
