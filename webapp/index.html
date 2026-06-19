@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConfigProbe Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">CP</div>
+      <div>
+        <h1 class="header-title">ConfigProbe Dashboard</h1>
+        <p class="header-sub">VPN Config Results Explorer</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <input type="text" id="data-url" value=""
+             class="url-input" placeholder="Relative or absolute CSV URL">
+      <button id="btn-load-url" class="btn-primary">Load URL</button>
+      <label class="btn-secondary" title="Upload a local CSV file">
+        📂 Upload
+        <input type="file" id="file-input" accept=".csv" hidden>
+      </label>
+      <span id="load-status" class="status-text"></span>
+    </div>
+  </header>
+
+  <div id="progress-bar-wrap" class="progress-wrap hidden">
+    <div class="progress-track">
+      <div id="progress-bar" class="progress-fill" style="width:0%"></div>
+    </div>
+    <span id="progress-text" class="progress-text">Loading…</span>
+  </div>
+
+  <main class="main">
+
+    <div id="empty-state" class="empty-state">
+      <div class="empty-icon">📊</div>
+      <h2>No Data Loaded</h2>
+      <p>Load the results CSV to explore VPN config data</p>
+      <button id="btn-load-url-2" class="btn-primary btn-lg">Load from Repository</button>
+      <p class="empty-hint">or use the Upload button to load a local CSV file</p>
+    </div>
+
+    <div id="dashboard" class="hidden">
+
+      <div id="stats-grid" class="stats-grid"></div>
+
+      <div class="charts-grid">
+        <div class="card">
+          <div class="card-title">Availability</div>
+          <div class="chart-wrap"><canvas id="chart-status"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Protocol Breakdown</div>
+          <div class="chart-wrap"><canvas id="chart-protocol"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Top Exit Countries (working)</div>
+          <div class="chart-wrap"><canvas id="chart-country"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label for="f-protocol">Protocol</label>
+            <select id="f-protocol"><option value="">All</option></select>
+          </div>
+          <div class="filter-group">
+            <label for="f-country">Country</label>
+            <select id="f-country"><option value="">All</option></select>
+          </div>
+          <div class="filter-group">
+            <label for="f-status">Status</label>
+            <select id="f-status">
+              <option value="">All</option>
+              <option value="working">Working only</option>
+              <option value="failed">Failed only</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="f-datacenter">Datacenter</label>
+            <select id="f-datacenter">
+              <option value="">All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="f-blacklisted">Blacklisted</label>
+            <select id="f-blacklisted">
+              <option value="">All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="f-proxy">Proxy Detected</label>
+            <select id="f-proxy">
+              <option value="">All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
+          <div class="filter-group filter-search">
+            <label for="f-search">Search</label>
+            <input type="text" id="f-search" class="search-input"
+                   placeholder="server, name, org, ASN, IP, city…">
+          </div>
+          <div class="filter-actions">
+            <button id="btn-reset-filters" class="btn-secondary">Reset</button>
+            <button id="btn-export" class="btn-primary">⬇ Export CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-table">
+        <div class="table-toolbar">
+          <span id="table-count" class="table-count"></span>
+          <select id="page-size" class="select-sm">
+            <option value="50">50 / page</option>
+            <option value="100">100 / page</option>
+            <option value="200">200 / page</option>
+          </select>
+        </div>
+
+        <div class="table-scroll">
+          <table id="main-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-col="protocol">Protocol</th>
+                <th>Server : Port</th>
+                <th>Name / Channel</th>
+                <th class="sortable" data-col="country">Country</th>
+                <th class="sortable" data-col="latency_ms">Latency</th>
+                <th class="sortable" data-col="is_redirecting">Status</th>
+                <th class="sortable" data-col="is_datacenter">DC</th>
+                <th class="sortable" data-col="is_blacklisted">BL</th>
+                <th class="sortable" data-col="proxy_detected">Proxy</th>
+                <th>Org / ASN</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="table-footer">
+          <button id="btn-prev" class="btn-secondary btn-sm">← Prev</button>
+          <span id="pagination-info" class="pagination-info"></span>
+          <button id="btn-next" class="btn-secondary btn-sm">Next →</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div id="dialog-overlay" class="dialog-overlay hidden" role="dialog" aria-modal="true">
+    <div class="dialog">
+      <div class="dialog-header">
+        <div id="dialog-heading" class="dialog-heading"></div>
+        <button id="dialog-close" class="dialog-close" aria-label="Close">✕</button>
+      </div>
+      <div id="dialog-body" class="dialog-body"></div>
+      <div class="dialog-footer">
+        <button id="btn-copy-uri" class="btn-secondary">🔗 Copy URI</button>
+        <button id="btn-copy-config" class="btn-secondary">📋 Copy Details</button>
+        <button id="dialog-close-btn" class="btn-primary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

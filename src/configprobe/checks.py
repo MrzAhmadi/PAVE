@@ -28,10 +28,15 @@ class DnsCheck(ProxyCheck):
             raw = self._curl(proxy_addr, self._URL)
             if raw:
                 data = json.loads(raw)
-                return {
-                    "dns_resolver_ip":      data.get("dns"),
-                    "dns_resolver_country": data.get("country"),
-                }
+                if data.get("status") == "fail":
+                    return {"dns_resolver_ip": None, "dns_resolver_country": None}
+                resolver = data.get("dns") or data.get("query")
+                country  = data.get("country")
+                if resolver:
+                    return {
+                        "dns_resolver_ip":      resolver,
+                        "dns_resolver_country": country,
+                    }
         except Exception:
             pass
         return {"dns_resolver_ip": None, "dns_resolver_country": None}

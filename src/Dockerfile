@@ -1,6 +1,7 @@
-FROM python:3.13-slim
+FROM python:3.13-slim-bookworm
 
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
        curl \
        ca-certificates \

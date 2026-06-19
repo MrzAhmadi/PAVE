@@ -52,6 +52,7 @@ class TestResult:
     def to_dict(self) -> dict:
         return {
             "config_id":            self.config.config_id,
+            "raw_config":           self.config.raw,
             "protocol":             self.config.protocol,
             "server":               self.config.server,
             "port":                 self.config.port,

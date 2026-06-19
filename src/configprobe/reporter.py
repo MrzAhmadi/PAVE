@@ -9,7 +9,7 @@ from .models import TestResult
 logger = logging.getLogger(__name__)
 
 CSV_FIELDS = [
-    "config_id", "protocol", "server", "port", "name", "source",
+    "config_id", "raw_config", "protocol", "server", "port", "name", "source",
     "timestamp", "success", "latency_ms", "exit_ip", "local_ip",
     "is_redirecting", "country", "country_code", "city", "org", "asn",
     "is_datacenter", "is_blacklisted",
@@ -86,5 +86,16 @@ def print_summary(results: List[TestResult]) -> None:
         mx  = max(latencies)
         print(f"\n  Latency (working configs):")
         print(f"    avg={avg:.0f}ms  min={mn:.0f}ms  max={mx:.0f}ms")
+
+    if successful:
+        n_succ    = len(successful)
+        proxy_det = sum(1 for r in successful if r.proxy_detected)
+        ipv6_cap  = sum(1 for r in successful if r.ipv6_exit_ip)
+        ipv6_leak = sum(1 for r in successful if r.ipv6_leak)
+        print(f"\n  Security (working configs):")
+        print(f"    Proxy-detected by ip-api   : {proxy_det} ({proxy_det/n_succ*100:.1f}%)")
+        print(f"    IPv6-capable exits         : {ipv6_cap} ({ipv6_cap/n_succ*100:.1f}%)")
+        if ipv6_leak:
+            print(f"    IPv6 leak (country mismatch): {ipv6_leak}")
 
     print(bar)
