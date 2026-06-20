@@ -67,7 +67,7 @@ RUN set -eux; \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY configprobe/ ./configprobe/
+COPY pave/ ./pave/
 COPY main.py .
 
 RUN mkdir -p /results
