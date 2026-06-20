@@ -178,7 +178,7 @@ def _stream_settings(p: dict) -> dict:
     if security == "tls":
         sni = p.get("sni", "") or p.get("host", "")
         fp  = p.get("fp", "")
-        tls: dict = {"allowInsecure": p.get("allowInsecure", "0") in ("1", "true", True)}
+        tls: dict = {"allowInsecure": p.get("allowInsecure", "1") in ("1", "true", True)}
         if sni:
             tls["serverName"] = sni
         if fp:

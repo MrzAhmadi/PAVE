@@ -73,6 +73,7 @@ def _run_shard(
     outdir: Path,
     progress_interval: int,
     limit: int | None,
+    timeout: int | None = None,
 ) -> int:
     args = [
         "--config-file", "/results/configs_deduped.txt",
@@ -85,6 +86,8 @@ def _run_shard(
     ]
     if limit is not None:
         args.extend(["-l", str(limit)])
+    if timeout is not None:
+        args.extend(["--timeout", str(timeout)])
     return _docker_compose_run(
         args,
         log_path=outdir / "logs" / f"shard_{i}.log",
@@ -117,6 +120,8 @@ def main() -> None:
                    help="Host output directory (default: config_results).")
     p.add_argument("--progress-interval", type=int, default=250,
                    help="Log summary every N configs per container (default: 250).")
+    p.add_argument("--timeout", type=int, default=None, metavar="SEC",
+                   help="Per-config connection timeout in seconds (default: 6).")
     args = p.parse_args()
 
     outdir = args.outdir
@@ -146,7 +151,7 @@ def main() -> None:
         future_map = {
             pool.submit(
                 _run_shard, i, args.containers, args.workers,
-                outdir, args.progress_interval, args.limit,
+                outdir, args.progress_interval, args.limit, args.timeout,
             ): i
             for i in range(args.containers)
         }

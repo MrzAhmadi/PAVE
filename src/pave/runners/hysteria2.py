@@ -69,7 +69,7 @@ def build_hy2_config(cfg: ProxyConfig, socks_port: int) -> dict:
         "socks5": {"listen": f"127.0.0.1:{socks_port}"},
         "tls": {
             "sni":      p.get("sni", "") or cfg.server,
-            "insecure": p.get("insecure", "0") in ("1", "true", True),
+            "insecure": p.get("insecure", "1") in ("1", "true", True),
         },
     }
     if p.get("obfs"):

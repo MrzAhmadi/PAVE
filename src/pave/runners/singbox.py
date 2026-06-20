@@ -106,7 +106,7 @@ def _tuic_outbound(cfg: ProxyConfig) -> dict:
         "tls": {
             "enabled":     True,
             "server_name": p.get("sni", "") or cfg.server,
-            "insecure":    p.get("insecure", "0") in ("1", "true", True),
+            "insecure":    p.get("insecure", "1") in ("1", "true", True),
             "alpn":        alpn,
         },
     }
