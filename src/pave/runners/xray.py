@@ -269,8 +269,9 @@ def _find_free_port(start: int = 10808, attempts: int = 200) -> int:
     raise RuntimeError("No free TCP port available in range")
 
 
-def _wait_for_port(port: int, timeout: float = XRAY_STARTUP_TIMEOUT) -> bool:
-    deadline = time.monotonic() + timeout
+def _wait_for_port(port: int, timeout: float | None = None) -> bool:
+    import pave.config as _cfg
+    deadline = time.monotonic() + (timeout if timeout is not None else _cfg.XRAY_STARTUP_TIMEOUT)
     while time.monotonic() < deadline:
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=0.3):

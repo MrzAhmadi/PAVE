@@ -1,7 +1,0 @@
-services:
-  pave:
-    build: .
-    image: pave:latest
-    volumes:
-      - ../results:/results
-      - ./:/subs:ro

@@ -1,0 +1,26 @@
+name: pave
+arch: all
+platform: linux
+version: "${PAVE_VERSION}"
+description: "Proxy Analysis and Verification Engine — fetch, deduplicate and test free proxy/VPN configs at scale."
+maintainer: "Reza <mrzahmadi96@gmail.com>"
+license: MIT
+homepage: "https://github.com/MrzAhmadi/ProxiScope"
+
+# Docker must be installed separately (docker.io on Ubuntu, docker-ce from Docker's repo).
+# Python 3.11+ is required.
+depends:
+  - python3
+
+contents:
+  - src: ./dist/pave.whl
+    dst: /usr/lib/pave/pave.whl
+
+  - src: ./packaging/pave-wrapper.sh
+    dst: /usr/bin/pave
+    file_info:
+      mode: 0755
+
+scripts:
+  postinstall: packaging/postinstall.sh
+  preremove: packaging/preremove.sh

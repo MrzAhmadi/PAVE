@@ -7,7 +7,8 @@ from typing import Optional
 
 import requests
 
-from ..config import CONNECTION_TIMEOUT, IP_CHECK_URL, TCP_PRECHECK_TIMEOUT
+from .. import config as _cfg
+from ..config import IP_CHECK_URL
 from ..models import ProxyConfig, TestResult
 
 CURL_ERRORS = {
@@ -113,7 +114,7 @@ class ProtocolTester(ABC):
             except OSError:
                 return True  # hostname — let curl handle DNS
         try:
-            with socket.create_connection((host, port), timeout=TCP_PRECHECK_TIMEOUT):
+            with socket.create_connection((host, port), timeout=_cfg.TCP_PRECHECK_TIMEOUT):
                 return True
         except OSError:
             return False
@@ -121,8 +122,10 @@ class ProtocolTester(ABC):
     @staticmethod
     def _curl_via_socks(
         proxy_addr: str,
-        timeout: int = CONNECTION_TIMEOUT,
+        timeout: int | None = None,
     ) -> tuple[Optional[str], Optional[float], Optional[str]]:
+        if timeout is None:
+            timeout = _cfg.CONNECTION_TIMEOUT
         """Run curl through a SOCKS5 proxy at proxy_addr.
 
         proxy_addr may be "host:port" or "user:pass@host:port".

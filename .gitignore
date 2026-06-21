@@ -1,10 +1,29 @@
+# subscriptions (contain personal URLs)
 subscriptions.txt
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
 .env
+
+# Runtime output
 results/
 *.log
+
+# OS
 .DS_Store
-analysis
+
+# Analysis notebooks output (large, auto-generated)
+analysis/

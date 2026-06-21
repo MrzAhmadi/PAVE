@@ -87,6 +87,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Per-config connection timeout in seconds.",
     )
     p.add_argument(
+        "--tcp-timeout",
+        type=int, default=None, metavar="SEC",
+        help="TCP reachability pre-check timeout in seconds.",
+    )
+    p.add_argument(
+        "--startup-timeout",
+        type=int, default=None, metavar="SEC",
+        help="Proxy binary startup timeout in seconds (xray/hy2/sing-box).",
+    )
+    p.add_argument(
         "--shards",
         type=int, default=1, metavar="N",
         help="Total number of parallel containers sharing the work (default: 1).",
@@ -189,9 +199,10 @@ def main() -> int:
         datefmt="%H:%M:%S",
     )
 
-    if args.timeout is not None:
-        import pave.config as cfg_mod
-        cfg_mod.CONNECTION_TIMEOUT = args.timeout
+    import pave.config as cfg_mod
+    if args.timeout         is not None: cfg_mod.CONNECTION_TIMEOUT    = args.timeout
+    if args.tcp_timeout     is not None: cfg_mod.TCP_PRECHECK_TIMEOUT  = args.tcp_timeout
+    if args.startup_timeout is not None: cfg_mod.XRAY_STARTUP_TIMEOUT  = args.startup_timeout
 
     if args.fetch_only:
         if not args.input and not args.url:

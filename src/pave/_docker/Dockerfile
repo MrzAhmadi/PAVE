@@ -20,13 +20,11 @@ RUN set -eux; \
     esac; \
     VERSION="$(curl -fsSL https://api.github.com/repos/XTLS/Xray-core/releases/latest \
                | grep '"tag_name"' | head -1 | cut -d'"' -f4)"; \
-    echo "Installing xray ${VERSION} (${XRAY_ARCH})"; \
     curl -fsSL "https://github.com/XTLS/Xray-core/releases/download/${VERSION}/Xray-linux-${XRAY_ARCH}.zip" \
          -o /tmp/xray.zip; \
     unzip /tmp/xray.zip xray -d /usr/local/bin/; \
     chmod +x /usr/local/bin/xray; \
-    rm /tmp/xray.zip; \
-    xray version
+    rm /tmp/xray.zip
 
 RUN set -eux; \
     ARCH="$(dpkg --print-architecture)"; \
@@ -38,11 +36,9 @@ RUN set -eux; \
     esac; \
     VERSION="$(curl -fsSL https://api.github.com/repos/apernet/hysteria/releases/latest \
                | grep '"tag_name"' | head -1 | cut -d'"' -f4)"; \
-    echo "Installing hysteria2 ${VERSION} (${HY2_ARCH})"; \
     curl -fsSL "https://github.com/apernet/hysteria/releases/download/${VERSION}/hysteria-${HY2_ARCH}" \
          -o /usr/local/bin/hysteria2; \
-    chmod +x /usr/local/bin/hysteria2; \
-    hysteria2 version
+    chmod +x /usr/local/bin/hysteria2
 
 RUN set -eux; \
     ARCH="$(dpkg --print-architecture)"; \
@@ -55,23 +51,20 @@ RUN set -eux; \
     VERSION="$(curl -fsSL https://api.github.com/repos/SagerNet/sing-box/releases/latest \
                | grep '"tag_name"' | head -1 | cut -d'"' -f4)"; \
     VER="${VERSION#v}"; \
-    echo "Installing sing-box ${VERSION} (${SB_ARCH})"; \
     curl -fsSL "https://github.com/SagerNet/sing-box/releases/download/${VERSION}/sing-box-${VER}-${SB_ARCH}.tar.gz" \
          -o /tmp/sing-box.tar.gz; \
     tar -xzf /tmp/sing-box.tar.gz -C /tmp/; \
     mv "/tmp/sing-box-${VER}-${SB_ARCH}/sing-box" /usr/local/bin/sing-box; \
     chmod +x /usr/local/bin/sing-box; \
-    rm -rf /tmp/sing-box.tar.gz "/tmp/sing-box-${VER}-${SB_ARCH}"; \
-    sing-box version
+    rm -rf /tmp/sing-box.tar.gz "/tmp/sing-box-${VER}-${SB_ARCH}"
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY pave/ ./pave/
-COPY main.py .
+COPY entrypoint.py .
 
-RUN mkdir -p /results
+RUN mkdir -p /results /subs
 
-ENTRYPOINT ["python", "main.py"]
-
+ENTRYPOINT ["python", "entrypoint.py"]
 CMD ["-i", "/subs/subscriptions.txt", "-w", "10", "-o", "/results"]

@@ -1,65 +1,180 @@
-# Proxy Analysis and Verification Engine (PAVE)
+# PAVE — Proxy Analysis and Verification Engine
 
 Fetches free proxy/VPN subscription URLs, deduplicates configs, and tests each one for reachability.
-Supports vless, vmess, shadowsocks (SS), ShadowsocksR (SSR), trojan, hysteria2, TUIC, and SOCKS protocols.
+Supports vless, vmess, shadowsocks, ShadowsocksR, trojan, hysteria2, TUIC, and SOCKS.
 Results are exported as CSV/JSON with geo-IP enrichment (country, city, ASN, datacenter flag).
 
-## How to Run
+**Requires Docker** (the proxy binaries run inside containers).
 
-### 1. Add subscription URLs
+---
 
-Edit `src/subscriptions.txt` — one URL per line, `#` lines are comments:
+## Installation
+
+### PyPI — recommended
+
+```bash
+pip install pave
+pave --help
+```
+
+### Debian / Ubuntu
+
+```bash
+wget https://github.com/MrzAhmadi/ProxiScope/releases/latest/download/pave_latest_all.deb
+sudo apt install ./pave_latest_all.deb
+pave --help
+```
+
+### RHEL / Fedora / CentOS
+
+```bash
+wget https://github.com/MrzAhmadi/ProxiScope/releases/latest/download/pave-latest.noarch.rpm
+sudo rpm -i pave-latest.noarch.rpm
+pave --help
+```
+
+### Any Linux (.tar.gz)
+
+```bash
+wget https://github.com/MrzAhmadi/ProxiScope/releases/latest/download/pave-latest-linux.tar.gz
+tar -xzf pave-latest-linux.tar.gz
+cd pave-*/
+sudo ./install.sh
+pave --help
+```
+
+> Find exact filenames on the [Releases page](https://github.com/MrzAhmadi/ProxiScope/releases/latest).
+
+---
+
+## Usage
+
+### `pave run` — run an experiment
+
+```bash
+pave run -s subscriptions.txt
+```
+
+On first run it builds the Docker image, fetches and deduplicates all subscription configs, distributes work across N parallel containers, then merges the results.
 
 ```text
-https://example.com/sub1
-https://example.com/sub2
+pave run -s FILE [options]
+
+required:
+  -s, --subs FILE          Subscriptions file (one URL per line, # = comment)
+
+scale:
+  -n, --containers N       Parallel Docker containers          (default: 12)
+  -w, --workers N          Concurrent workers per container    (default: 50)
+
+output:
+  -o, --outdir DIR         Results directory                   (default: results/YYYY-MM-DD_HH-MM)
+  -f, --format FORMAT      csv | json | both                   (default: both)
+  -l, --limit N            Max configs per shard (smoke test)
+
+timeouts:
+  --timeout SEC            curl connection timeout             (default: 15)
+  --tcp-timeout SEC        TCP reachability pre-check          (default: 2)
+  --startup-timeout SEC    Proxy binary startup timeout        (default: 3)
+
+behaviour:
+  --progress-interval N    Log summary every N configs         (default: 250)
+  --no-build               Skip Docker image rebuild
+  -v, --verbose            DEBUG-level logging inside containers
 ```
 
-### 2. Parallel containers (recommended)
-
-Run from the `src/` directory. This fetches once, splits work across N containers, and merges results:
+**Examples:**
 
 ```bash
-cd src
-python scripts/orchestrate.py 12 --outdir ../results
+# Standard run — 20 containers
+pave run -s subscriptions.txt -n 20
+
+# Smoke test — fast check with 50 configs per shard
+pave run -s subscriptions.txt -n 2 -l 50 -w 10
+
+# Tune timeouts to reduce errors
+pave run -s subscriptions.txt -n 20 --timeout 20 --tcp-timeout 3
+
+# Skip rebuild after a code change
+pave run -s subscriptions.txt -n 20 --no-build -o results/run-02
 ```
 
-Smoke test (100 configs per shard):
-
-```bash
-python scripts/orchestrate.py 2 100 --workers 10 --outdir ../results
-```
-
-Options:
+Output directory layout after a run:
 
 ```text
-python scripts/orchestrate.py [containers] [limit_per_shard]
-  --workers N            Concurrent workers per container (default: 50)
-  --outdir PATH          Output directory (default: config_results)
-  --progress-interval N  Log summary every N configs per container (default: 250)
+results/2024-01-01_12-00/
+├── results.csv     ← merged results (all shards combined)
+├── results.json    ← same data as JSON
+└── logs/
+    ├── fetch.log
+    ├── shard_0.log
+    └── shard_N.log
 ```
 
-Results are written to `results/merged/results.csv` and `results/merged/results.json`.
+---
 
-### 3. Single container
+### `pave serve` — explore results in the browser
 
 ```bash
-cd src
-docker compose run --rm pave \
-  -i /subs/subscriptions.txt \
-  -w 10 \
-  -o /results \
-  -f both
+pave serve -r results/2024-01-01_12-00
 ```
 
-### 4. Rebuild the image
+Starts a local web dashboard, loads your results CSV automatically, and opens the browser.
 
-Required after any code change or when updating the base binaries (xray, hysteria2, sing-box):
+```text
+pave serve [options]
+
+  -r, --results DIR    Results directory to load
+  -p, --port PORT      Port to listen on (default: 8000)
+  --no-browser         Do not open browser automatically
+```
+
+---
+
+### `pave version` — show version info
 
 ```bash
-cd src
-docker compose build
+pave version
 ```
+
+```text
+pave        0.1.0
+python      3.11.0
+docker      24.0.5, build ...
+```
+
+---
+
+## Releases (GitHub Actions)
+
+Every `v*.*.*` tag triggers a build that publishes to:
+
+| Target | Format | How to install |
+| --- | --- | --- |
+| **PyPI** | `.whl` | `pip install pave` |
+| **Debian/Ubuntu** | `.deb` | `apt install ./pave_*.deb` |
+| **RHEL/Fedora** | `.rpm` | `rpm -i pave-*.rpm` |
+| **Any Linux** | `.tar.gz` | `sudo ./install.sh` |
+
+To cut a release:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+### PyPI setup (one-time)
+
+PAVE uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/) — no API token needed:
+
+1. Create the project on [pypi.org](https://pypi.org)
+2. Go to **Publishing** → **Add a new pending publisher**
+3. Fill in: owner `MrzAhmadi`, repository `ProxiScope`, workflow `release.yml`, environment `pypi`
+4. In GitHub → Settings → Environments → create `pypi`
+
+After that, `git push v*.*.*` does the full release automatically.
+
+---
 
 ## Output Fields
 
@@ -82,7 +197,7 @@ docker compose build
 | `is_redirecting` | `true` if exit IP differs from local IP |
 | `error` | Error message if the test failed |
 
-### Geo (enriched after all tests via ip-api.com batch API)
+### Geo
 
 | Field | Description |
 | --- | --- |
@@ -92,9 +207,9 @@ docker compose build
 | `org` | ISP / hosting company name |
 | `asn` | Autonomous System Number |
 | `is_datacenter` | `true` if exit IP belongs to a hosting/datacenter range |
-| `is_blacklisted` | `true` if exit IP is flagged as a known proxy by ip-api.com |
+| `is_blacklisted` | `true` if exit IP is flagged as a known proxy |
 
-### Security checks (run through the proxy while it is alive)
+### Security checks
 
 | Field | Description |
 | --- | --- |
@@ -103,64 +218,35 @@ docker compose build
 | `dns_leak` | `true` if DNS resolver country differs from exit IP country |
 | `ipv6_exit_ip` | IPv6 address returned when connecting through the proxy |
 | `ipv6_leak` | `true` if IPv6 exit country differs from IPv4 exit country |
-| `proxy_detected` | `true` if the exit IP is detected as a proxy by ip-api.com (queried from inside the proxy) |
-| `x_forwarded_for` | Value of `X-Forwarded-For` header injected by the proxy (reveals origin IP if present) |
+| `proxy_detected` | `true` if exit IP is detected as a proxy by ip-api.com |
+| `x_forwarded_for` | `X-Forwarded-For` header value (reveals origin IP if present) |
+
+---
 
 ## Architecture
 
 ```text
-src/
-├── main.py                          # CLI entrypoint
-├── subscriptions.txt                # Subscription URLs (one per line)
-├── pave/
-│   ├── config.py                    # Constants (timeouts, paths, worker count)
-│   ├── models.py                    # ProxyConfig, TestResult dataclasses
-│   ├── fetcher.py                   # Fetch & base64-decode subscription URLs
-│   ├── parser.py                    # Parse raw URI strings → ProxyConfig
-│   ├── checks.py                    # ProxyCheck ABC + DNS / IPv6 / header / detection checks
-│   ├── tester.py                    # Orchestration: run_tests(), _enrich_geo()
-│   ├── reporter.py                  # CSV/JSON writer + terminal summary
-│   ├── protocols/                   # One file per protocol — OOP, all inherit ProtocolTester
-│   │   ├── base.py                  # ProtocolTester ABC, XrayBasedTester, SingboxBasedTester
-│   │   ├── vless.py                 # VlessProtocolTester
-│   │   ├── vmess.py                 # VmessProtocolTester
-│   │   ├── shadowsocks.py           # ShadowsocksProtocolTester
-│   │   ├── shadowsocksr.py          # ShadowsocksRProtocolTester
-│   │   ├── trojan.py                # TrojanProtocolTester
-│   │   ├── hysteria2.py             # Hysteria2ProtocolTester
-│   │   ├── tuic.py                  # TuicProtocolTester
-│   │   ├── socks.py                 # SocksProtocolTester
-│   │   └── __init__.py              # create_tester() factory
-│   └── runners/                     # Subprocess lifecycle managers (context managers)
-│       ├── base.py                  # ProxyRunner ABC
-│       ├── xray.py                  # XrayProcess — vless / vmess / ss / trojan
-│       ├── hysteria2.py             # Hysteria2Process
-│       └── singbox.py               # SingboxProcess — tuic / ssr
-└── scripts/
-    ├── orchestrate.py               # Parallel Docker orchestration
-    └── merge_results.py             # Merge per-shard outputs into one file
-```
-
-### Class hierarchy
-
-```text
-ProtocolTester (ABC)  ←  checks.py / ProxyCheck (ABC)
-├── XrayBasedTester        ├── DnsCheck
-│   ├── VlessProtocolTester     ├── IPv6LeakCheck
-│   ├── VmessProtocolTester     ├── ProxyDetectionCheck
-│   ├── ShadowsocksProtocolTester└── HeaderLeakCheck
-│   └── TrojanProtocolTester
-├── SingboxBasedTester
-│   ├── TuicProtocolTester
-│   └── ShadowsocksRProtocolTester
-├── Hysteria2ProtocolTester
-└── SocksProtocolTester
-
-runners/
-ProxyRunner (ABC)
-├── XrayProcess
-├── Hysteria2Process
-└── SingboxProcess
+src/pave/
+├── cli.py                   # pave CLI (orchestrator)
+├── config.py                # constants (timeouts, paths, worker count)
+├── models.py                # ProxyConfig, TestResult dataclasses
+├── fetcher.py               # fetch & decode subscription URLs
+├── parser.py                # parse raw URIs → ProxyConfig
+├── checks.py                # DNS / IPv6 / proxy-detection / header checks
+├── tester.py                # run_tests(), geo enrichment
+├── reporter.py              # CSV/JSON writer + terminal summary
+├── protocols/               # one file per protocol, all inherit ProtocolTester
+│   ├── base.py              # ProtocolTester ABC, XrayBasedTester, SingboxBasedTester
+│   ├── vless.py / vmess.py / shadowsocks.py / trojan.py / ...
+│   └── __init__.py          # create_tester() factory
+├── runners/                 # subprocess lifecycle managers
+│   ├── xray.py              # XrayProcess — vless / vmess / ss / trojan
+│   ├── hysteria2.py         # Hysteria2Process
+│   └── singbox.py           # SingboxProcess — tuic / ssr
+└── _docker/
+    ├── Dockerfile           # container image (xray + hy2 + sing-box)
+    ├── entrypoint.py        # container CLI (main.py)
+    └── requirements.txt
 ```
 
 ### Pipeline
@@ -171,10 +257,9 @@ ProxyRunner (ABC)
 4. *(Sharded)* Each container receives its 1/N slice via `--shard I --shards N`
 5. Per config — `create_tester()` selects the right `ProtocolTester`:
    - TCP pre-check (IP targets only)
-   - Launch proxy subprocess via the matching runner (`XrayProcess` / `Hysteria2Process` / `SingboxProcess`)
-   - `curl` through the local SOCKS5 port → get `exit_ip` and `latency_ms`
-   - If connected: run all 4 `ProxyCheck`s **in parallel** through the same proxy port
-   - Proxy subprocess terminates
+   - Launch proxy subprocess (xray / hysteria2 / sing-box)
+   - `curl` through local SOCKS5 port → get `exit_ip` and `latency_ms`
+   - If connected: run all security checks in parallel through the same port
 6. Batch geo-IP enrichment via ip-api.com after all tests complete
-7. Compute `dns_leak` (DNS country ≠ exit country) and `ipv6_leak` (IPv6 exit country ≠ IPv4 exit country)
-8. *(Sharded)* `merge_results.py` concatenates shard outputs into `merged/`
+7. Compute `dns_leak` and `ipv6_leak`
+8. *(Sharded)* Merge shard outputs → write `results.csv` / `results.json` to outdir, remove shard dirs
