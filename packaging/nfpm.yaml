@@ -5,7 +5,7 @@ version: "${PAVE_VERSION}"
 description: "Proxy Analysis and Verification Engine — fetch, deduplicate and test free proxy/VPN configs at scale."
 maintainer: "Reza <mrzahmadi96@gmail.com>"
 license: MIT
-homepage: "https://github.com/MrzAhmadi/ProxiScope"
+homepage: "https://github.com/MrzAhmadi/PAVE"
 
 # Docker must be installed separately (docker.io on Ubuntu, docker-ce from Docker's repo).
 # Python 3.11+ is required.

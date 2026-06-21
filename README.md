@@ -20,7 +20,7 @@ pave --help
 ### Debian / Ubuntu
 
 ```bash
-wget https://github.com/MrzAhmadi/ProxiScope/releases/latest/download/pave_latest_all.deb
+wget https://github.com/MrzAhmadi/PAVE/releases/latest/download/pave_latest_all.deb
 sudo apt install ./pave_latest_all.deb
 pave --help
 ```
@@ -28,7 +28,7 @@ pave --help
 ### RHEL / Fedora / CentOS
 
 ```bash
-wget https://github.com/MrzAhmadi/ProxiScope/releases/latest/download/pave-latest.noarch.rpm
+wget https://github.com/MrzAhmadi/PAVE/releases/latest/download/pave-latest.noarch.rpm
 sudo rpm -i pave-latest.noarch.rpm
 pave --help
 ```
@@ -36,14 +36,14 @@ pave --help
 ### Any Linux (.tar.gz)
 
 ```bash
-wget https://github.com/MrzAhmadi/ProxiScope/releases/latest/download/pave-latest-linux.tar.gz
+wget https://github.com/MrzAhmadi/PAVE/releases/latest/download/pave-latest-linux.tar.gz
 tar -xzf pave-latest-linux.tar.gz
 cd pave-*/
 sudo ./install.sh
 pave --help
 ```
 
-> Find exact filenames on the [Releases page](https://github.com/MrzAhmadi/ProxiScope/releases/latest).
+> Find exact filenames on the [Releases page](https://github.com/MrzAhmadi/PAVE/releases/latest).
 
 ---
 
@@ -220,46 +220,3 @@ After that, `git push v*.*.*` does the full release automatically.
 | `ipv6_leak` | `true` if IPv6 exit country differs from IPv4 exit country |
 | `proxy_detected` | `true` if exit IP is detected as a proxy by ip-api.com |
 | `x_forwarded_for` | `X-Forwarded-For` header value (reveals origin IP if present) |
-
----
-
-## Architecture
-
-```text
-src/pave/
-├── cli.py                   # pave CLI (orchestrator)
-├── config.py                # constants (timeouts, paths, worker count)
-├── models.py                # ProxyConfig, TestResult dataclasses
-├── fetcher.py               # fetch & decode subscription URLs
-├── parser.py                # parse raw URIs → ProxyConfig
-├── checks.py                # DNS / IPv6 / proxy-detection / header checks
-├── tester.py                # run_tests(), geo enrichment
-├── reporter.py              # CSV/JSON writer + terminal summary
-├── protocols/               # one file per protocol, all inherit ProtocolTester
-│   ├── base.py              # ProtocolTester ABC, XrayBasedTester, SingboxBasedTester
-│   ├── vless.py / vmess.py / shadowsocks.py / trojan.py / ...
-│   └── __init__.py          # create_tester() factory
-├── runners/                 # subprocess lifecycle managers
-│   ├── xray.py              # XrayProcess — vless / vmess / ss / trojan
-│   ├── hysteria2.py         # Hysteria2Process
-│   └── singbox.py           # SingboxProcess — tuic / ssr
-└── _docker/
-    ├── Dockerfile           # container image (xray + hy2 + sing-box)
-    ├── entrypoint.py        # container CLI (main.py)
-    └── requirements.txt
-```
-
-### Pipeline
-
-1. Fetch subscription URLs → decode base64 → split into raw config lines
-2. Parse each line into a `ProxyConfig` (protocol, server, port, params)
-3. Deduplicate — exact string match, then credential-level (`protocol|server|port|auth`)
-4. *(Sharded)* Each container receives its 1/N slice via `--shard I --shards N`
-5. Per config — `create_tester()` selects the right `ProtocolTester`:
-   - TCP pre-check (IP targets only)
-   - Launch proxy subprocess (xray / hysteria2 / sing-box)
-   - `curl` through local SOCKS5 port → get `exit_ip` and `latency_ms`
-   - If connected: run all security checks in parallel through the same port
-6. Batch geo-IP enrichment via ip-api.com after all tests complete
-7. Compute `dns_leak` and `ipv6_leak`
-8. *(Sharded)* Merge shard outputs → write `results.csv` / `results.json` to outdir, remove shard dirs
