@@ -17,8 +17,8 @@ dependencies = [
 [project.scripts]
 pave = "pave.cli:main"
 
-[tool.hatchling.build.targets.wheel]
+[tool.hatch.build.targets.wheel]
 packages = ["src/pave"]
 
-[tool.hatchling.build.targets.sdist]
+[tool.hatch.build.targets.sdist]
 include = ["src/", "pyproject.toml", "README.md"]
