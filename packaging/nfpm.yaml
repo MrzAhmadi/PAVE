@@ -13,8 +13,8 @@ depends:
   - python3
 
 contents:
-  - src: ./dist/pave.whl
-    dst: /usr/lib/pave/pave.whl
+  - src: ./dist/pave_proxy-*.whl
+    dst: /usr/lib/pave/
 
   - src: ./packaging/pave-wrapper.sh
     dst: /usr/bin/pave

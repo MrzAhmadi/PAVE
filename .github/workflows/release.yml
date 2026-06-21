@@ -5,8 +5,7 @@ on:
     tags: ['v*.*.*']
 
 permissions:
-  contents: write   # create GitHub releases
-  id-token: write   # PyPI trusted publishing (OIDC)
+  contents: write
 
 jobs:
 
@@ -35,24 +34,7 @@ jobs:
           name: dist
           path: dist/
 
-  # ── 2a. Publish to PyPI (parallel with 2b) ───────────────────────────────────
-  publish-pypi:
-    name: Publish to PyPI
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/pave-proxy
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@release/v1
-
-  # ── 2b. Build .deb, .rpm, .tar.gz (parallel with 2a) ────────────────────────
+  # ── 2b. Build .deb, .rpm, .tar.gz ────────────────────────────────────────────
   packages:
     name: Build OS packages
     needs: build
@@ -73,9 +55,6 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/goreleaser.list
           sudo apt-get update -q
           sudo apt-get install -q -y nfpm
-
-      - name: Rename wheel to fixed name (used by nfpm)
-        run: cp dist/pave-*.whl dist/pave.whl
 
       - name: Build .deb
         run: nfpm pkg --config packaging/nfpm.yaml --packager deb --target dist/
