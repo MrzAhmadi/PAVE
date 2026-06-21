@@ -1,3 +1,8 @@
 """PAVE — Proxy Analysis and Verification Engine."""
 
-__version__ = "0.1.0"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("pave-proxy")
+except PackageNotFoundError:
+    __version__ = "dev"
