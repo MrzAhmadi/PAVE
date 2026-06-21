@@ -13,7 +13,7 @@ depends:
   - python3
 
 contents:
-  - src: ./dist/pave_proxy-*.whl
+  - src: ./dist/pave_proxy-${PAVE_VERSION}-py3-none-any.whl
     dst: /usr/lib/pave/
 
   - src: ./packaging/pave-wrapper.sh

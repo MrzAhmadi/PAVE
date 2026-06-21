@@ -26,6 +26,12 @@ jobs:
         id: ver
         run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version = .*/version = \"${VERSION}\"/" pyproject.toml
+          sed -i "s/__version__ = .*/__version__ = \"${VERSION}\"/" src/pave/__init__.py
+
       - name: Build wheel and sdist
         run: pip install build && python -m build
 
@@ -34,7 +40,7 @@ jobs:
           name: dist
           path: dist/
 
-  # ── 2b. Build .deb, .rpm, .tar.gz ────────────────────────────────────────────
+  # ── 2. Build .deb, .rpm, .tar.gz ─────────────────────────────────────────────
   packages:
     name: Build OS packages
     needs: build
@@ -70,7 +76,7 @@ jobs:
         run: |
           DIR="pave-${VERSION}"
           mkdir -p "${DIR}"
-          cp dist/pave-*.whl "${DIR}/pave.whl"
+          cp dist/pave_proxy-*.whl "${DIR}/pave_proxy.whl"
           cp packaging/install.sh "${DIR}/install.sh"
           chmod +x "${DIR}/install.sh"
           cp README.md "${DIR}/"
@@ -105,7 +111,7 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            dist/pave-*.whl
+            dist/pave_proxy-*.whl
             dist/pave-*.tar.gz
             dist/pave_*.deb
             dist/pave-*.rpm

@@ -10,13 +10,6 @@ Results are exported as CSV/JSON with geo-IP enrichment (country, city, ASN, dat
 
 ## Installation
 
-### PyPI — recommended
-
-```bash
-pip install pave-proxy
-pave --help
-```
-
 ### Debian / Ubuntu
 
 ```bash
