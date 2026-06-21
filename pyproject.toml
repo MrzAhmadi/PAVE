@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pave"
+name = "pave-proxy"
 version = "0.1.0"
 description = "Proxy Analysis and Verification Engine — fetch, deduplicate and test free proxy/VPN configs at scale."
 readme = "README.md"

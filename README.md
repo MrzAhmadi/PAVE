@@ -13,7 +13,7 @@ Results are exported as CSV/JSON with geo-IP enrichment (country, city, ASN, dat
 ### PyPI — recommended
 
 ```bash
-pip install pave
+pip install pave-proxy
 pave --help
 ```
 
@@ -151,7 +151,7 @@ Every `v*.*.*` tag triggers a build that publishes to:
 
 | Target | Format | How to install |
 | --- | --- | --- |
-| **PyPI** | `.whl` | `pip install pave` |
+| **PyPI** | `.whl` | `pip install pave-proxy` |
 | **Debian/Ubuntu** | `.deb` | `apt install ./pave_*.deb` |
 | **RHEL/Fedora** | `.rpm` | `rpm -i pave-*.rpm` |
 | **Any Linux** | `.tar.gz` | `sudo ./install.sh` |
@@ -169,7 +169,7 @@ PAVE uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/) �
 
 1. Create the project on [pypi.org](https://pypi.org)
 2. Go to **Publishing** → **Add a new pending publisher**
-3. Fill in: owner `MrzAhmadi`, repository `ProxiScope`, workflow `release.yml`, environment `pypi`
+3. Fill in: owner `MrzAhmadi`, repository `PAVE`, workflow `release.yml`, environment `pypi`
 4. In GitHub → Settings → Environments → create `pypi`
 
 After that, `git push v*.*.*` does the full release automatically.
