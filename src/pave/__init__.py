@@ -1,8 +1,8 @@
 """PAVE — Proxy Analysis and Verification Engine."""
 
-from importlib.metadata import version, PackageNotFoundError
+from pathlib import Path
 
 try:
-    __version__ = version("pave-proxy")
-except PackageNotFoundError:
+    __version__ = (Path(__file__).parent / "_version.txt").read_text().strip()
+except Exception:
     __version__ = "dev"

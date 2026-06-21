@@ -30,6 +30,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           sed -i "s/^version = .*/version = \"${VERSION}\"/" pyproject.toml
+          echo "${VERSION}" > src/pave/_version.txt
 
       - name: Build wheel and sdist
         run: pip install build && python -m build
